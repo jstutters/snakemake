@@ -8,6 +8,7 @@ import sys
 import email.utils
 from contextlib import contextmanager
 import functools
+from urllib.parse import urlparse
 
 # module-specific
 from snakemake.remote import AbstractRemoteProvider, AbstractRemoteObject, DomainObject
@@ -28,7 +29,6 @@ class RemoteProvider(AbstractRemoteProvider):
     def __init__(
         self, *args, keep_local=False, stay_on_remote=False, is_default=False, **kwargs
     ):
-        # loop = asyncio.get_event_loop()
         super(RemoteProvider, self).__init__(
             *args,
             keep_local=keep_local,
@@ -36,6 +36,15 @@ class RemoteProvider(AbstractRemoteProvider):
             is_default=is_default,
             **kwargs
         )
+        url = urlparse(args[0])
+        self.xnat = pyxnat.Interface(
+            "{0.scheme}://{0.hostname}".format(url),
+            user=url.username,
+            password=url.password
+        )
+        _, project, subject = url.path.split("/")
+        self.experiment = self.xnat.select.project(project).subject(subject)
+        assert self.experiment.exists()
 
     @property
     def default_protocol(self):
@@ -53,6 +62,7 @@ class RemoteObject(DomainObject):
 
     def __init__(self, *args, keep_local=False, **kwargs):
         super(RemoteObject, self).__init__(*args, keep_local=keep_local, **kwargs)
+        self.provider = kwargs["provider"]
 
     # === Implementations of abstract class members ===
 
